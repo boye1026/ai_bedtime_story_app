@@ -17,12 +17,11 @@ class TTSService {
 
   Future<void> init() async {
     try {
-      await _flutterTts.setLanguage("zh-CN");
+      await _flutterTts.setLanguage('zh-CN');
       await _flutterTts.setSpeechRate(0.5);
       await _flutterTts.setPitch(1.0);
       await _flutterTts.setVolume(1.0);
 
-      // 设置回调 - 修复 Null 错误
       _flutterTts.setStartHandler(() {
         _isSpeaking = true;
         _isPaused = false;
@@ -50,5 +49,66 @@ class TTSService {
     }
   }
 
-  // ... 其他方法保持不变
+  Future<void> speak(String text) async {
+    if (text.isEmpty) return;
+    try {
+      await stop();
+      _currentText = text;
+      final result = await _flutterTts.speak(text);
+      if (result == 1) {
+        _isSpeaking = true;
+        _isPaused = false;
+      }
+    } catch (e) {
+      debugPrint('TTS朗读错误: $e');
+      if (onError != null) onError!(e.toString());
+    }
+  }
+
+  Future<void> pause() async {
+    try {
+      final result = await _flutterTts.pause();
+      if (result == 1) {
+        _isPaused = true;
+        _isSpeaking = false;
+      }
+    } catch (e) {
+      debugPrint('TTS暂停错误: $e');
+    }
+  }
+
+  Future<void> resume() async {
+    try {
+      if (_isPaused && _currentText.isNotEmpty) {
+        final result = await _flutterTts.speak(_currentText);
+        if (result == 1) {
+          _isSpeaking = true;
+          _isPaused = false;
+        }
+      }
+    } catch (e) {
+      debugPrint('TTS恢复错误: $e');
+    }
+  }
+
+  Future<void> stop() async {
+    try {
+      await _flutterTts.stop();
+      _isSpeaking = false;
+      _isPaused = false;
+    } catch (e) {
+      debugPrint('TTS停止错误: $e');
+    }
+  }
+
+  void dispose() {
+    stop();
+    _flutterTts.setStartHandler(null);
+    _flutterTts.setCompletionHandler(null);
+    _flutterTts.setErrorHandler(null);
+    _flutterTts.setCancelHandler(null);
+  }
+
+  bool get isSpeaking => _isSpeaking;
+  bool get isPaused => _isPaused;
 }
