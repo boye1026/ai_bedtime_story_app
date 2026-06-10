@@ -1,10 +1,10 @@
-name: Build Flutter App
+name: Build APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
   build:
@@ -12,10 +12,15 @@ jobs:
     
     defaults:
       run:
-        working-directory: ./mobile  # 你的 Flutter 项目路径
+        working-directory: ./mobile
     
     steps:
       - uses: actions/checkout@v4
+      
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
       
       - uses: subosito/flutter-action@v2
         with:
@@ -25,8 +30,8 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       
-      - name: Verify project structure
-        run: flutter analyze
+      - name: Clean project
+        run: flutter clean
       
       - name: Build APK
         run: flutter build apk --release
