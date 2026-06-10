@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/child_info_service.dart';
 import '../models/child_info.dart';
 import '../theme/app_theme.dart';
 import 'story_list_page.dart';
 
 class InfoSetupPage extends StatefulWidget {
-  const InfoSetupPage({Key? key}) : super(key: key);
+  const InfoSetupPage({super.key});
 
   @override
   State<InfoSetupPage> createState() => _InfoSetupPageState();
@@ -16,33 +15,23 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
   final _formKey = GlobalKey<FormState>();
   final _childInfoService = ChildInfoService();
   
-  // 表单控制器
   final _nameController = TextEditingController();
-  final _ageController = TextEditingController();
   final _interestController = TextEditingController();
   
-  // 选择的值
   String _selectedGender = 'boy';
   String _selectedStoryType = 'adventure';
   String _selectedLanguage = 'zh-CN';
-  
-  // 年龄范围
   int _selectedAge = 5;
-  
-  // 提交状态 - 改为 final 并初始化
   bool _isSubmitting = false;
   
-  // 年龄选项
   final List<int> _ageOptions = List.generate(13, (index) => index + 3);
   
-  // 性别选项
   final List<Map<String, dynamic>> _genderOptions = [
     {'value': 'boy', 'label': '男孩', 'icon': Icons.boy},
     {'value': 'girl', 'label': '女孩', 'icon': Icons.girl},
     {'value': 'other', 'label': '其他', 'icon': Icons.child_care},
   ];
   
-  // 故事类型选项
   final List<Map<String, dynamic>> _storyTypeOptions = [
     {'value': 'adventure', 'label': '冒险', 'icon': Icons.hiking, 'color': Colors.orange},
     {'value': 'fairy_tale', 'label': '童话', 'icon': Icons.auto_stories, 'color': Colors.purple},
@@ -52,7 +41,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
     {'value': 'daily_life', 'label': '日常生活', 'icon': Icons.home, 'color': Colors.teal},
   ];
   
-  // 语言选项
   final List<Map<String, dynamic>> _languageOptions = [
     {'value': 'zh-CN', 'label': '简体中文', 'flag': '🇨🇳'},
     {'value': 'zh-TW', 'label': '繁體中文', 'flag': '🇹🇼'},
@@ -68,14 +56,13 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _ageController.dispose();
     _interestController.dispose();
     super.dispose();
   }
 
   Future<void> _loadSavedInfo() async {
     final savedInfo = await _childInfoService.getChildInfo();
-    if (savedInfo != null) {
+    if (savedInfo != null && mounted) {
       setState(() {
         _nameController.text = savedInfo.name;
         _selectedAge = savedInfo.age;
@@ -96,7 +83,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
       });
       
       try {
-        // 解析兴趣
         List<String> interests = _interestController.text
             .split(',')
             .map((e) => e.trim())
@@ -123,7 +109,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
             ),
           );
           
-          // 跳转到故事列表页
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -172,7 +157,10 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                     child: const Text('取消'),
                   ),
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                    },
                     child: const Text('退出'),
                   ),
                 ],
@@ -186,7 +174,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // 头部说明
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -226,10 +213,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                 ],
               ),
             ),
-            
             const SizedBox(height: 24),
-            
-            // 基本信息卡片
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -251,8 +235,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
-                    // 姓名
                     TextFormField(
                       controller: _nameController,
                       decoration: const InputDecoration(
@@ -270,10 +252,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                         return null;
                       },
                     ),
-                    
                     const SizedBox(height: 16),
-                    
-                    // 年龄
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -310,10 +289,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                         ),
                       ],
                     ),
-                    
                     const SizedBox(height: 16),
-                    
-                    // 性别
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -378,10 +354,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                 ),
               ),
             ),
-            
             const SizedBox(height: 16),
-            
-            // 故事偏好卡片
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -403,8 +376,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
-                    // 故事类型
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -475,10 +446,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                         ),
                       ],
                     ),
-                    
                     const SizedBox(height: 16),
-                    
-                    // 兴趣爱好
                     TextFormField(
                       controller: _interestController,
                       decoration: const InputDecoration(
@@ -493,10 +461,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                 ),
               ),
             ),
-            
             const SizedBox(height: 16),
-            
-            // 语言设置卡片
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -518,7 +483,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
                     Wrap(
                       spacing: 12,
                       runSpacing: 8,
@@ -540,10 +504,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                 ),
               ),
             ),
-            
             const SizedBox(height: 32),
-            
-            // 提交按钮
             ElevatedButton(
               onPressed: _isSubmitting ? null : _submitInfo,
               style: ElevatedButton.styleFrom(
@@ -568,10 +529,7 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
             ),
-            
             const SizedBox(height: 16),
-            
-            // 提示文字
             Center(
               child: Text(
                 '所有信息仅用于个性化故事生成，不会泄露',
@@ -580,7 +538,6 @@ class _InfoSetupPageState extends State<InfoSetupPage> {
                     ),
               ),
             ),
-            
             const SizedBox(height: 32),
           ],
         ),
