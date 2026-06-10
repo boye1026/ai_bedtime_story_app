@@ -1,11 +1,11 @@
 class ChildInfo {
   final String name;
   final int age;
-  final String gender;      // 确保有这个字段
-  final String storyType;   // 确保有这个字段
+  final String gender;
+  final String storyType;
   final List<String> interests;
-  final String language;    // 确保有这个字段
-  final DateTime createdAt; // 确保有这个字段
+  final String language;
+  final DateTime createdAt;
 
   ChildInfo({
     required this.name,
@@ -17,7 +17,6 @@ class ChildInfo {
     required this.createdAt,
   });
 
-  // 转换为 JSON
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -30,7 +29,6 @@ class ChildInfo {
     };
   }
 
-  // 从 JSON 创建
   factory ChildInfo.fromJson(Map<String, dynamic> json) {
     return ChildInfo(
       name: json['name'] as String,
