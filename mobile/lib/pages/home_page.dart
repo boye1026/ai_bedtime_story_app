@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_theme.dart';
 
 /// 首页
 /// 应用的主入口页面，展示APP名称和开始按钮
