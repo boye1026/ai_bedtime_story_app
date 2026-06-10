@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
 import '../models/story.dart';
 
 class ApiService {
@@ -53,23 +51,5 @@ class ApiService {
         'summary': '专属定制故事',
       },
     };
-  }
-
-  // 激活VIP
-  Future<bool> activateVip(String userId, String planId) async {
-    await Future.delayed(const Duration(seconds: 1));
-    return true;
-  }
-
-  // 收藏/取消收藏故事
-  Future<bool> toggleFavorite(String storyId) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return true;
-  }
-
-  // 获取收藏的故事列表
-  Future<List<Story>> getFavoriteStories() async {
-    await Future.delayed(const Duration(seconds: 1));
-    return [];
   }
 }
