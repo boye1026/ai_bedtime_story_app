@@ -103,10 +103,11 @@ class TTSService {
 
   void dispose() {
     stop();
-    _flutterTts.setStartHandler(null);
-    _flutterTts.setCompletionHandler(null);
-    _flutterTts.setErrorHandler(null);
-    _flutterTts.setCancelHandler(null);
+    // 移除 Null 赋值，直接设置回调
+    _flutterTts.setStartHandler(() {});
+    _flutterTts.setCompletionHandler(() {});
+    _flutterTts.setErrorHandler((msg) {});
+    _flutterTts.setCancelHandler(() {});
   }
 
   bool get isSpeaking => _isSpeaking;
