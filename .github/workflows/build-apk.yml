@@ -1,37 +1,38 @@
-name: Build Android APK
+name: Build Flutter App
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./mobile  # 你的 Flutter 项目路径
+    
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      
+      - uses: subosito/flutter-action@v2
         with:
-          distribution: 'zulu'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.16.0'
           channel: 'stable'
-
+      
       - name: Install dependencies
         run: flutter pub get
-
+      
+      - name: Verify project structure
+        run: flutter analyze
+      
       - name: Build APK
         run: flutter build apk --release
-
+      
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: bedtime-story-app
-          path: build/app/outputs/flutter-apk/app-release.apk 
+          name: release-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
