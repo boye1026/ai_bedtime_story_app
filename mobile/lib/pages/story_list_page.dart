@@ -4,7 +4,7 @@ import '../models/story.dart';
 import 'story_display_page.dart';
 
 class StoryListPage extends StatefulWidget {
-  const StoryListPage({Key? key}) : super(key: key);
+  const StoryListPage({super.key});
 
   @override
   State<StoryListPage> createState() => _StoryListPageState();
@@ -48,6 +48,12 @@ class _StoryListPageState extends State<StoryListPage> {
       appBar: AppBar(
         title: const Text('故事列表'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadStories,
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -78,27 +84,11 @@ class _StoryListPageState extends State<StoryListPage> {
                         final story = _stories[index];
                         return Card(
                           margin: const EdgeInsets.only(bottom: 16),
-                          child: ListTile(
-                            leading: story.imageUrl != null
-                                ? Image.network(
-                                    story.imageUrl!,
-                                    width: 60,
-                                    height: 60,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) =>
-                                        const Icon(Icons.auto_stories, size: 40),
-                                  )
-                                : const Icon(Icons.auto_stories, size: 40),
-                            title: Text(
-                              story.title,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(
-                              story.summary,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: const Icon(Icons.chevron_right),
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: InkWell(
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -110,6 +100,56 @@ class _StoryListPageState extends State<StoryListPage> {
                                 ),
                               );
                             },
+                            borderRadius: BorderRadius.circular(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(
+                                      Icons.auto_stories,
+                                      size: 30,
+                                      color: Theme.of(context).primaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          story.title,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          story.summary,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right,
+                                    color: Colors.grey[400],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         );
                       },
