@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/tts_service.dart';
 
-// 修复图标错误的部分
 class StoryDisplayPage extends StatefulWidget {
   final String storyTitle;
   final String storyContent;
-  final dynamic childInfo;
-  final String? imageUrl;
 
   const StoryDisplayPage({
-    Key? key,
+    super.key,
     required this.storyTitle,
     required this.storyContent,
-    this.childInfo,
-    this.imageUrl,
-  }) : super(key: key);
+  });
 
   @override
   State<StoryDisplayPage> createState() => _StoryDisplayPageState();
@@ -35,7 +29,25 @@ class _StoryDisplayPageState extends State<StoryDisplayPage> {
 
   Future<void> _initTTS() async {
     await _ttsService.init();
-    setState(() {});
+    _ttsService.onComplete = () {
+      if (mounted) {
+        setState(() {
+          _isPlaying = false;
+          _isPaused = false;
+        });
+      }
+    };
+    _ttsService.onError = (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('语音播放错误: $error')),
+        );
+        setState(() {
+          _isPlaying = false;
+          _isPaused = false;
+        });
+      }
+    };
   }
 
   @override
@@ -45,63 +57,6 @@ class _StoryDisplayPageState extends State<StoryDisplayPage> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.storyTitle),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share),  // 修复：使用 Icons.share
-            onPressed: _shareStory,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // 播放控制栏
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.1),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    _isPlaying ? Icons.pause_circle : 
-                    (_isPaused ? Icons.play_circle : Icons.play_circle),
-                    size: 48,
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  onPressed: _togglePlayback,
-                ),
-                const SizedBox(width: 16),
-                IconButton(
-                  icon: const Icon(Icons.stop_circle, size: 48),  // 修复：使用 Icons.stop_circle
-                  onPressed: _stopPlayback,
-                  color: Colors.red,
-                ),
-              ],
-            ),
-          ),
-          // 故事内容
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                widget.storyContent,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _togglePlayback() {
     if (_isPlaying) {
       _ttsService.pause();
@@ -109,12 +64,14 @@ class _StoryDisplayPageState extends State<StoryDisplayPage> {
         _isPlaying = false;
         _isPaused = true;
       });
+    } else if (_isPaused) {
+      _ttsService.resume();
+      setState(() {
+        _isPlaying = true;
+        _isPaused = false;
+      });
     } else {
-      if (_isPaused) {
-        _ttsService.resume();
-      } else {
-        _ttsService.speak(widget.storyContent);
-      }
+      _ttsService.speak(widget.storyContent);
       setState(() {
         _isPlaying = true;
         _isPaused = false;
@@ -130,7 +87,75 @@ class _StoryDisplayPageState extends State<StoryDisplayPage> {
     });
   }
 
-  Future<void> _shareStory() async {
-    // 分享逻辑
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.storyTitle),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () {
+              // 分享功能
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor.withOpacity(0.1),
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.grey[300]!,
+                  width: 1,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _isPlaying ? Icons.pause_circle_filled : 
+                    (_isPaused ? Icons.play_circle_filled : Icons.play_circle_filled),
+                    size: 48,
+                    color: _isPlaying || _isPaused 
+                        ? Theme.of(context).primaryColor 
+                        : Colors.grey[600],
+                  ),
+                  onPressed: _togglePlayback,
+                ),
+                const SizedBox(width: 16),
+                IconButton(
+                  icon: Icon(
+                    Icons.stop_circle,
+                    size: 48,
+                    color: Colors.red[400],
+                  ),
+                  onPressed: _stopPlayback,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                widget.storyContent,
+                style: const TextStyle(
+                  fontSize: 16,
+                  height: 1.6,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
