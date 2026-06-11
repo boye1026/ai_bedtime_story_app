@@ -1,41 +1,93 @@
-name: Build APK
+name: Build APK with PowerShell
 
 on:
   push:
     branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest  # 使用 Windows runner
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
+      # 设置 Java (Android 构建需要)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
       
+      # 设置 Flutter (如果使用 Flutter)
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          flutter-version: '3.22.0'
+          channel: 'stable'
       
-      - name: Build
-        working-directory: ./mobile
+      # 或设置 Node.js (如果使用 React Native)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      # PowerShell: 获取依赖
+      - name: Get dependencies (PowerShell)
+        shell: pwsh
         run: |
-          set -e
-          flutter pub get || true
-          flutter build apk --release || echo "Build failed but continuing"
-          
-          # 查找任何生成的 APK
-          find . -name "*.apk" -type f
+          Write-Host "Getting dependencies..." -ForegroundColor Green
+          flutter pub get
+          # 或对于 React Native: npm ci
       
-      - name: Upload APK
-        if: success() || failure()
+      # PowerShell: 构建 APK
+      - name: Build APK (PowerShell)
+        shell: pwsh
+        run: |
+          Write-Host "Starting APK build..." -ForegroundColor Green
+          flutter build apk --release
+          
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "Build failed!" -ForegroundColor Red
+              exit $LASTEXITCODE
+          }
+          Write-Host "Build completed successfully!" -ForegroundColor Green
+      
+      # PowerShell: 查找所有 APK 文件
+      - name: Find APK files (PowerShell)
+        shell: pwsh
+        run: |
+          Write-Host "Searching for APK files..." -ForegroundColor Yellow
+          $apkFiles = Get-ChildItem -Path . -Recurse -Filter "*.apk" -ErrorAction SilentlyContinue
+          
+          if ($apkFiles.Count -eq 0) {
+              Write-Host "No APK files found!" -ForegroundColor Red
+              Write-Host "Current directory contents:" -ForegroundColor Yellow
+              Get-ChildItem -Recurse | Select-Object FullName
+              exit 1
+          }
+          
+          Write-Host "Found $($apkFiles.Count) APK file(s):" -ForegroundColor Green
+          foreach ($file in $apkFiles) {
+              Write-Host "  - $($file.FullName)" -ForegroundColor Cyan
+              Write-Host "    Size: $([math]::Round($file.Length/1MB, 2)) MB" -ForegroundColor Gray
+          }
+      
+      # PowerShell: 上传 APK 文件
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apk-files
-          path: |
-            **/*.apk
+          name: app-release-apk
+          path: "**/*.apk"
+          if-no-files-found: error
+          compression-level: 0  # 不压缩，保持原样
+      
+      # PowerShell: 可选 - 列出上传的文件
+      - name: List artifacts (PowerShell)
+        shell: pwsh
+        run: |
+          Write-Host "Artifacts will be available at:" -ForegroundColor Green
+          Write-Host "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" -ForegroundColor Cyan
