@@ -25,20 +25,45 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
       
-      - name: Enable Windows long path support
-        run: git config --system core.longpaths true
+      - name: List files for debugging
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Files:"
+          ls -la
+        shell: bash
+      
+      - name: Create missing files if needed
+        run: |
+          # 检查是否有 android 文件夹，如果没有则创建
+          if [ ! -d "android" ]; then
+            echo "Creating Android folder..."
+            flutter create --platforms=android .
+          fi
+        shell: bash
       
       - name: Get Flutter dependencies
         run: flutter pub get
-        working-directory: ${{ github.workspace }}
+        shell: bash
       
       - name: Build APK
         run: flutter build apk --release
-        working-directory: ${{ github.workspace }}
+        shell: bash
+      
+      - name: Verify APK exists
+        run: |
+          if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "APK found successfully!"
+            ls -lh build/app/outputs/flutter-apk/app-release.apk
+          else
+            echo "APK not found!"
+            exit 1
+          fi
+        shell: bash
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: ${{ github.workspace }}/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
