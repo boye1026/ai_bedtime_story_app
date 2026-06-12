@@ -25,61 +25,93 @@ jobs:
           flutter-version: '3.16.9'
           channel: 'stable'
       
-      - name: Backup your code
-        shell: bash
+      - name: Clean and recreate Android folder
+        shell: powershell
         run: |
-          # 备份你的代码
-          if [ -d "lib" ]; then
-            cp -r lib lib_backup
-          fi
-          if [ -f "pubspec.yaml" ]; then
-            cp pubspec.yaml pubspec_backup.yaml
-          fi
-      
-      - name: Create fresh Flutter project
-        shell: bash
-        run: |
-          # 删除所有 Flutter 生成的文件
-          rm -rf android ios windows linux macos web .dart_tool .idea
+          # 删除旧的 android 文件夹
+          if (Test-Path "android") {
+            Remove-Item -Recurse -Force android
+          }
+          if (Test-Path ".dart_tool") {
+            Remove-Item -Recurse -Force .dart_tool
+          }
           
-          # 创建全新的项目
+          # 重新创建 Android 平台文件
           flutter create --platforms=android .
           
-          # 恢复你的代码
-          if [ -d "lib_backup" ]; then
-            rm -rf lib
-            mv lib_backup lib
-          fi
-          if [ -f "pubspec_backup.yaml" ]; then
-            mv pubspec_backup.yaml pubspec.yaml
-          fi
-          
-          # 确保 gradle-wrapper.properties 格式正确
-          cat android/gradle/wrapper/gradle-wrapper.properties
+          Write-Host "✅ Android project recreated"
       
-      - name: Ensure correct gradle wrapper
-        shell: bash
+      - name: Fix build.gradle files
+        shell: powershell
         run: |
-          # 直接重写文件确保格式正确
-          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-all.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
+          # 修复项目级别的 build.gradle
+          $buildGradlePath = "android\build.gradle"
+          if (Test-Path $buildGradlePath) {
+            $content = Get-Content $buildGradlePath -Raw
+            $content = $content -replace 'ext.kotlin_version = .*', "ext.kotlin_version = '1.9.22'"
+            Set-Content $buildGradlePath $content -NoNewline
+            Write-Host "✅ Updated kotlin_version in build.gradle"
+          }
           
-          echo "=== gradle-wrapper.properties ==="
-          cat android/gradle/wrapper/gradle-wrapper.properties
+          # 修复 app/build.gradle
+          $appBuildGradlePath = "android\app\build.gradle"
+          if (Test-Path $appBuildGradlePath) {
+            $content = Get-Content $appBuildGradlePath -Raw
+            $content = $content -replace 'compileSdkVersion \d+', 'compileSdkVersion 34'
+            $content = $content -replace 'targetSdkVersion \d+', 'targetSdkVersion 34'
+            $content = $content -replace 'minSdkVersion \d+', 'minSdkVersion 21'
+            Set-Content $appBuildGradlePath $content -NoNewline
+            Write-Host "✅ Updated SDK versions in app/build.gradle"
+          }
+          
+          Write-Host "✅ Build files fixed"
+      
+      - name: Verify flutter_tts version
+        shell: powershell
+        run: |
+          $pubspec = Get-Content "pubspec.yaml" -Raw
+          if ($pubspec -match "flutter_tts: \^3.8.5") {
+            Write-Host "✅ flutter_tts version 3.8.5 found" -ForegroundColor Green
+          } else {
+            Write-Host "⚠️  Please update flutter_tts to ^3.8.5 in pubspec.yaml" -ForegroundColor Yellow
+          }
       
       - name: Get dependencies
-        run: flutter pub get
+        shell: powershell
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Pub get failed!" -ForegroundColor Red
+            exit $LASTEXITCODE
+          }
+          Write-Host "✅ Dependencies installed" -ForegroundColor Green
       
       - name: Build APK
-        run: flutter build apk --release
+        shell: powershell
+        run: |
+          flutter build apk --release
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ Build failed!" -ForegroundColor Red
+            exit $LASTEXITCODE
+          }
+          Write-Host "✅ APK built successfully!" -ForegroundColor Green
+      
+      - name: Verify APK exists
+        shell: powershell
+        run: |
+          $apkPath = "build\app\outputs\flutter-apk\app-release.apk"
+          if (Test-Path $apkPath) {
+            $size = [math]::Round((Get-Item $apkPath).Length / 1MB, 2)
+            Write-Host "✅ APK found at: $apkPath" -ForegroundColor Green
+            Write-Host "📦 Size: $size MB" -ForegroundColor Green
+          } else {
+            Write-Host "❌ APK not found!" -ForegroundColor Red
+            exit 1
+          }
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
