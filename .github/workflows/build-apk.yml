@@ -22,11 +22,55 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.16.9'
           channel: 'stable'
       
-      - name: Create Flutter project files
-        run: flutter create --platforms=android .
+      - name: Backup your code
+        shell: bash
+        run: |
+          # 备份你的代码
+          if [ -d "lib" ]; then
+            cp -r lib lib_backup
+          fi
+          if [ -f "pubspec.yaml" ]; then
+            cp pubspec.yaml pubspec_backup.yaml
+          fi
+      
+      - name: Create fresh Flutter project
+        shell: bash
+        run: |
+          # 删除所有 Flutter 生成的文件
+          rm -rf android ios windows linux macos web .dart_tool .idea
+          
+          # 创建全新的项目
+          flutter create --platforms=android .
+          
+          # 恢复你的代码
+          if [ -d "lib_backup" ]; then
+            rm -rf lib
+            mv lib_backup lib
+          fi
+          if [ -f "pubspec_backup.yaml" ]; then
+            mv pubspec_backup.yaml pubspec.yaml
+          fi
+          
+          # 确保 gradle-wrapper.properties 格式正确
+          cat android/gradle/wrapper/gradle-wrapper.properties
+      
+      - name: Ensure correct gradle wrapper
+        shell: bash
+        run: |
+          # 直接重写文件确保格式正确
+          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-all.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          
+          echo "=== gradle-wrapper.properties ==="
+          cat android/gradle/wrapper/gradle-wrapper.properties
       
       - name: Get dependencies
         run: flutter pub get
