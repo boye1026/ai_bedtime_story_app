@@ -1,8 +1,6 @@
-name: Build Flutter APK
+name: Direct Build APK
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -19,158 +17,182 @@ jobs:
       
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.9'
+          flutter-version: '3.22.0'
       
-      - name: Backup your code
+      - name: Write correct main.dart
         run: |
-          if [ -d "lib" ]; then
-            cp -r lib lib_backup
-          fi
-          if [ -f "pubspec.yaml" ]; then
-            cp pubspec.yaml pubspec_backup.yaml
-          fi
-      
-      - name: Create fresh Flutter project
-        run: |
-          # 完全删除 android 文件夹
-          rm -rf android ios linux macos windows web .dart_tool
-          
-          # 创建全新的项目
-          flutter create --platforms=android .
-          
-          # 恢复你的代码
-          if [ -d "lib_backup" ]; then
-            rm -rf lib
-            mv lib_backup lib
-          fi
-          if [ -f "pubspec_backup.yaml" ]; then
-            mv pubspec_backup.yaml pubspec.yaml
-          fi
-      
-      - name: Configure build files
-        run: |
-          # 获取包名（从 AndroidManifest.xml 或使用默认值）
-          PACKAGE_NAME="com.example.ai_bedtime_story_app"
-          
-          # 更新 build.gradle 添加 namespace
-          cat > android/app/build.gradle << 'EOF'
-          def localProperties = new Properties()
-          def localPropertiesFile = rootProject.file('local.properties')
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader('UTF-8') { reader ->
-                  localProperties.load(reader)
-              }
+          mkdir -p mobile/lib
+          cat > mobile/lib/main.dart << 'EOF'
+          import 'package:flutter/material.dart';
+          import 'package:flutter_tts/flutter_tts.dart';
+          import 'package:google_fonts/google_fonts.dart';
+          import 'package:shared_preferences/shared_preferences.dart';
+
+          void main() {
+            runApp(const BedtimeStoryApp());
           }
-          
-          def flutterRoot = localProperties.getProperty('flutter.sdk')
-          if (flutterRoot == null) {
-              throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+
+          class BedtimeStoryApp extends StatelessWidget {
+            const BedtimeStoryApp({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                title: 'AI睡前故事',
+                theme: ThemeData(
+                  primarySwatch: Colors.deepPurple,
+                  scaffoldBackgroundColor: Colors.grey.shade50,
+                  textTheme: GoogleFonts.poppinsTextTheme(),
+                  useMaterial3: true,
+                ),
+                home: const HomePage(),
+                debugShowCheckedModeBanner: false,
+              );
+            }
           }
-          
-          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-          if (flutterVersionCode == null) {
-              flutterVersionCode = '1'
+
+          class HomePage extends StatefulWidget {
+            const HomePage({super.key});
+
+            @override
+            State<HomePage> createState() => _HomePageState();
           }
-          
-          def flutterVersionName = localProperties.getProperty('flutter.versionName')
-          if (flutterVersionName == null) {
-              flutterVersionName = '1.0'
-          }
-          
-          apply plugin: 'com.android.application'
-          apply plugin: 'kotlin-android'
-          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
-          
-          android {
-              namespace 'com.example.ai_bedtime_story_app'
-              compileSdkVersion 34
-              ndkVersion flutter.ndkVersion
-          
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
+
+          class _HomePageState extends State<HomePage> {
+            final FlutterTts _flutterTts = FlutterTts();
+            final TextEditingController _nameController = TextEditingController();
+            String _generatedStory = '';
+            bool _isPlaying = false;
+
+            @override
+            void initState() {
+              super.initState();
+              _initTTS();
+            }
+
+            Future<void> _initTTS() async {
+              await _flutterTts.setLanguage("zh-CN");
+              await _flutterTts.setSpeechRate(0.5);
+              await _flutterTts.setPitch(1.0);
+            }
+
+            Future<void> _generateStory() async {
+              setState(() {
+                _generatedStory = "从前有一个叫${_nameController.text}的小朋友，他/她非常勇敢善良...";
+              });
+            }
+
+            Future<void> _speakStory() async {
+              if (_generatedStory.isNotEmpty) {
+                setState(() => _isPlaying = true);
+                await _flutterTts.speak(_generatedStory);
               }
-          
-              kotlinOptions {
-                  jvmTarget = '1.8'
-              }
-          
-              sourceSets {
-                  main.java.srcDirs += 'src/main/kotlin'
-              }
-          
-              defaultConfig {
-                  applicationId "com.example.ai_bedtime_story_app"
-                  minSdkVersion 21
-                  targetSdkVersion 34
-                  versionCode flutterVersionCode.toInteger()
-                  versionName flutterVersionName
-              }
-          
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.debug
-                  }
-              }
-          }
-          
-          flutter {
-              source '../..'
-          }
-          
-          dependencies {
-              implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+            }
+
+            Future<void> _stopStory() async {
+              await _flutterTts.stop();
+              setState(() => _isPlaying = false);
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                appBar: AppBar(
+                  title: const Text('AI睡前故事'),
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                body: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: '宝宝的名字',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: _generateStory,
+                        child: const Text('生成故事'),
+                      ),
+                      const SizedBox(height: 20),
+                      if (_generatedStory.isNotEmpty)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              children: [
+                                Text(_generatedStory),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    ElevatedButton(
+                                      onPressed: _speakStory,
+                                      child: const Text('播放'),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    ElevatedButton(
+                                      onPressed: _stopStory,
+                                      child: const Text('停止'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            @override
+            void dispose() {
+              _nameController.dispose();
+              _flutterTts.stop();
+              super.dispose();
+            }
           }
           EOF
           
-          # 更新项目级 build.gradle
-          cat > android/build.gradle << 'EOF'
-          buildscript {
-              ext.kotlin_version = '1.9.22'
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:7.3.0'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-              }
-          }
-          
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          
-          rootProject.buildDir = '../build'
-          subprojects {
-              project.buildDir = "${rootProject.buildDir}/${project.name}"
-          }
-          subprojects {
-              project.evaluationDependsOn(':app')
-          }
-          
-          tasks.register("clean", Delete) {
-              delete rootProject.buildDir
-          }
+          echo "✅ main.dart written"
+          cat mobile/lib/main.dart | head -20
+      
+      - name: Create pubspec.yaml
+        working-directory: mobile
+        run: |
+          cat > pubspec.yaml << 'EOF'
+          name: bedtime_story_app
+          description: AI睡前故事应用
+          publish_to: 'none'
+          version: 1.0.0+1
+
+          environment:
+            sdk: ">=3.0.0 <4.0.0"
+
+          dependencies:
+            flutter:
+              sdk: flutter
+            flutter_tts: ^3.8.5
+            google_fonts: ^6.1.0
+            shared_preferences: ^2.2.2
+            path_provider: ^2.1.1
+
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^3.0.0
+
+          flutter:
+            uses-material-design: true
           EOF
-          
-          # 创建正确的 gradle-wrapper.properties
-          mkdir -p android/gradle/wrapper
-          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-all.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-          
-          echo "✅ All configurations fixed"
       
       - name: Build APK
+        working-directory: mobile
         run: |
           flutter clean
           flutter pub get
@@ -179,4 +201,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
