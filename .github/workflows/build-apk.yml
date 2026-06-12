@@ -21,41 +21,151 @@ jobs:
         with:
           flutter-version: '3.16.9'
       
-      - name: Check if main.dart exists
+      - name: Backup your code
         run: |
-          if [ ! -f "lib/main.dart" ]; then
-            echo "❌ lib/main.dart not found!"
-            echo "Creating lib/main.dart..."
-            mkdir -p lib
-            cat > lib/main.dart << 'EOF'
-          import 'package:flutter/material.dart';
+          # 备份你的代码
+          if [ -d "lib" ]; then
+            cp -r lib lib_backup
+          fi
+          if [ -f "pubspec.yaml" ]; then
+            cp pubspec.yaml pubspec_backup.yaml
+          fi
+      
+      - name: Create fresh Flutter project
+        run: |
+          # 完全删除 android 文件夹
+          rm -rf android ios linux macos windows web .dart_tool
           
-          void main() {
-            runApp(const MyApp());
+          # 创建全新的项目
+          flutter create --platforms=android .
+          
+          # 恢复你的代码
+          if [ -d "lib_backup" ]; then
+            rm -rf lib
+            mv lib_backup lib
+          fi
+          if [ -f "pubspec_backup.yaml" ]; then
+            mv pubspec_backup.yaml pubspec.yaml
+          fi
+      
+      - name: Configure build files
+        run: |
+          # 更新 Kotlin 版本
+          cat > android/build.gradle << 'EOF'
+          buildscript {
+              ext.kotlin_version = '1.9.22'
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.3.0'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+              }
           }
           
-          class MyApp extends StatelessWidget {
-            const MyApp({super.key});
-            
-            @override
-            Widget build(BuildContext context) {
-              return MaterialApp(
-                title: 'AI睡前故事',
-                home: Scaffold(
-                  appBar: AppBar(
-                    title: const Text('AI睡前故事'),
-                  ),
-                  body: const Center(
-                    child: Text('欢迎使用AI睡前故事'),
-                  ),
-                ),
-              );
-            }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          
+          rootProject.buildDir = '../build'
+          subprojects {
+              project.buildDir = "${rootProject.buildDir}/${project.name}"
+          }
+          subprojects {
+              project.evaluationDependsOn(':app')
+          }
+          
+          tasks.register("clean", Delete) {
+              delete rootProject.buildDir
           }
           EOF
-          else
-            echo "✅ lib/main.dart found"
-          fi
+          
+          # 更新 app/build.gradle
+          cat > android/app/build.gradle << 'EOF'
+          def localProperties = new Properties()
+          def localPropertiesFile = rootProject.file('local.properties')
+          if (localPropertiesFile.exists()) {
+              localPropertiesFile.withReader('UTF-8') { reader ->
+                  localProperties.load(reader)
+              }
+          }
+          
+          def flutterRoot = localProperties.getProperty('flutter.sdk')
+          if (flutterRoot == null) {
+              throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+          }
+          
+          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+          if (flutterVersionCode == null) {
+              flutterVersionCode = '1'
+          }
+          
+          def flutterVersionName = localProperties.getProperty('flutter.versionName')
+          if (flutterVersionName == null) {
+              flutterVersionName = '1.0'
+          }
+          
+          apply plugin: 'com.android.application'
+          apply plugin: 'kotlin-android'
+          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+          
+          android {
+              compileSdkVersion 34
+              ndkVersion flutter.ndkVersion
+          
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          
+              kotlinOptions {
+                  jvmTarget = '1.8'
+              }
+          
+              sourceSets {
+                  main.java.srcDirs += 'src/main/kotlin'
+              }
+          
+              defaultConfig {
+                  applicationId "com.example.ai_bedtime_story_app"
+                  minSdkVersion 21
+                  targetSdkVersion 34
+                  versionCode flutterVersionCode.toInteger()
+                  versionName flutterVersionName
+              }
+          
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          
+          flutter {
+              source '../..'
+          }
+          
+          dependencies {
+              implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+          }
+          EOF
+          
+          # 创建正确的 gradle-wrapper.properties
+          mkdir -p android/gradle/wrapper
+          cat > android/gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-7.5-all.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          
+          echo "✅ All configurations fixed"
       
       - name: Build APK
         run: |
