@@ -13,6 +13,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Debug - Show directory structure
+        shell: bash
+        run: |
+          echo "=== Current Directory ==="
+          pwd
+          echo "=== Directory Contents ==="
+          ls -la
+          echo "=== Searching for pubspec.yaml ==="
+          find . -name "pubspec.yaml" -type f
+      
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -25,45 +35,105 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
       
-      - name: List files for debugging
+      - name: Find and move to Flutter project
+        shell: bash
         run: |
-          echo "Current directory:"
-          pwd
-          echo "Files:"
-          ls -la
-        shell: bash
-      
-      - name: Create missing files if needed
-        run: |
-          # 检查是否有 android 文件夹，如果没有则创建
-          if [ ! -d "android" ]; then
-            echo "Creating Android folder..."
-            flutter create --platforms=android .
-          fi
-        shell: bash
-      
-      - name: Get Flutter dependencies
-        run: flutter pub get
-        shell: bash
-      
-      - name: Build APK
-        run: flutter build apk --release
-        shell: bash
-      
-      - name: Verify APK exists
-        run: |
-          if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK found successfully!"
-            ls -lh build/app/outputs/flutter-apk/app-release.apk
-          else
-            echo "APK not found!"
+          # 查找 pubspec.yaml 所在的目录
+          PUBSPEC_PATH=$(find . -name "pubspec.yaml" -type f | head -1)
+          
+          if [ -z "$PUBSPEC_PATH" ]; then
+            echo "❌ pubspec.yaml not found in any subdirectory!"
+            echo "Current directory contents:"
+            ls -la
             exit 1
           fi
-        shell: bash
+          
+          PROJECT_DIR=$(dirname "$PUBSPEC_PATH")
+          echo "✅ Found pubspec.yaml at: $PUBSPEC_PATH"
+          echo "✅ Project directory: $PROJECT_DIR"
+          
+          # 切换到项目目录
+          cd "$PROJECT_DIR"
+          echo "PROJECT_DIR=${PROJECT_DIR}" >> $GITHUB_ENV
+          
+          # 显示项目信息
+          echo "=== Project files ==="
+          ls -la
+          
+          # 检查必要的配置文件
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "❌ Still can't find pubspec.yaml after switching directory!"
+            exit 1
+          fi
       
-      - name: Upload APK
+      - name: Get Flutter dependencies
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+          echo "Running flutter pub get in: $(pwd)"
+          flutter pub get
+          
+          if [ $? -ne 0 ]; then
+            echo "❌ Flutter pub get failed!"
+            exit 1
+          fi
+          echo "✅ Dependencies installed successfully!"
+      
+      - name: Create Android platform (if needed)
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+          
+          # 检查是否有 android 文件夹
+          if [ ! -d "android" ]; then
+            echo "📱 Android folder not found, creating..."
+            flutter create --platforms=android .
+            
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to create Android platform!"
+              exit 1
+            fi
+            echo "✅ Android platform created!"
+          else
+            echo "✅ Android folder exists"
+          fi
+      
+      - name: Build APK
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+          echo "Building APK in: $(pwd)"
+          flutter build apk --release
+          
+          if [ $? -ne 0 ]; then
+            echo "❌ APK build failed!"
+            exit 1
+          fi
+          echo "✅ APK built successfully!"
+      
+      - name: Find and upload APK
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+          
+          # 查找 APK 文件
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          
+          if [ -f "$APK_PATH" ]; then
+            echo "✅ APK found at: $APK_PATH"
+            ls -lh "$APK_PATH"
+            # 复制到工作空间根目录
+            cp "$APK_PATH" "$GITHUB_WORKSPACE/app-release.apk"
+          else
+            echo "❌ APK not found at expected path: $APK_PATH"
+            echo "Searching for any APK files..."
+            find . -name "*.apk" -type f
+            exit 1
+          fi
+      
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: app-release.apk
           if-no-files-found: error
