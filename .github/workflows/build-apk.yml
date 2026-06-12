@@ -25,73 +25,20 @@ jobs:
           flutter-version: '3.22.0'
           channel: 'stable'
       
-      - name: Debug - Show directory structure
-        shell: pwsh
-        run: |
-          Write-Host "=== Current Directory ===" -ForegroundColor Cyan
-          Get-Location
-          Write-Host "`n=== Files in root ===" -ForegroundColor Cyan
-          Get-ChildItem
-          Write-Host "`n=== Searching for pubspec.yaml ===" -ForegroundColor Cyan
-          Get-ChildItem -Recurse -Filter "pubspec.yaml" | Select-Object FullName
+      - name: Enable Windows long path support
+        run: git config --system core.longpaths true
       
-      - name: Change to project directory (if needed)
-        shell: pwsh
-        run: |
-          # 如果 pubspec.yaml 在子目录中，切换到该目录
-          $pubspecPath = Get-ChildItem -Recurse -Filter "pubspec.yaml" | Select-Object -First 1
-          if ($pubspecPath) {
-              $projectDir = $pubspecPath.DirectoryName
-              Write-Host "Found project at: $projectDir" -ForegroundColor Green
-              Set-Location $projectDir
-              Write-Host "Changed to: $(Get-Location)" -ForegroundColor Green
-          } else {
-              Write-Host "pubspec.yaml not found!" -ForegroundColor Red
-              exit 1
-          }
-      
-      - name: Get dependencies
-        shell: pwsh
-        run: |
-          Write-Host "Running flutter pub get in: $(Get-Location)" -ForegroundColor Yellow
-          flutter pub get
-          
-          if ($LASTEXITCODE -ne 0) {
-              Write-Host "Flutter pub get failed!" -ForegroundColor Red
-              exit $LASTEXITCODE
-          }
+      - name: Get Flutter dependencies
+        run: flutter pub get
+        working-directory: ${{ github.workspace }}
       
       - name: Build APK
-        shell: pwsh
-        run: |
-          Write-Host "Building APK..." -ForegroundColor Yellow
-          flutter build apk --release
-          
-          if ($LASTEXITCODE -ne 0) {
-              Write-Host "Build failed!" -ForegroundColor Red
-              exit $LASTEXITCODE
-          }
-      
-      - name: Find and upload APK
-        shell: pwsh
-        run: |
-          $apk = Get-ChildItem -Recurse -Filter "*.apk" | Where-Object { $_.FullName -like "*release*" } | Select-Object -First 1
-          
-          if ($apk) {
-              Write-Host "APK found: $($apk.FullName)" -ForegroundColor Green
-              Write-Host "Size: $([math]::Round($apk.Length/1MB, 2)) MB" -ForegroundColor Green
-              
-              # 复制到固定位置以便上传
-              Copy-Item $apk.FullName -Destination "$env:GITHUB_WORKSPACE/app-release.apk"
-          } else {
-              Write-Host "No APK found!" -ForegroundColor Red
-              Get-ChildItem -Recurse -Filter "*.apk"
-              exit 1
-          }
+        run: flutter build apk --release
+        working-directory: ${{ github.workspace }}
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app-release.apk
+          name: app-release-apk
+          path: ${{ github.workspace }}/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
