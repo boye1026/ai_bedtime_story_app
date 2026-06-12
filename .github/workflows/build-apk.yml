@@ -23,7 +23,6 @@ jobs:
       
       - name: Backup your code
         run: |
-          # 备份你的代码
           if [ -d "lib" ]; then
             cp -r lib lib_backup
           fi
@@ -50,42 +49,10 @@ jobs:
       
       - name: Configure build files
         run: |
-          # 更新 Kotlin 版本
-          cat > android/build.gradle << 'EOF'
-          buildscript {
-              ext.kotlin_version = '1.9.22'
-              repositories {
-                  google()
-                  mavenCentral()
-              }
+          # 获取包名（从 AndroidManifest.xml 或使用默认值）
+          PACKAGE_NAME="com.example.ai_bedtime_story_app"
           
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:7.3.0'
-                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-              }
-          }
-          
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          
-          rootProject.buildDir = '../build'
-          subprojects {
-              project.buildDir = "${rootProject.buildDir}/${project.name}"
-          }
-          subprojects {
-              project.evaluationDependsOn(':app')
-          }
-          
-          tasks.register("clean", Delete) {
-              delete rootProject.buildDir
-          }
-          EOF
-          
-          # 更新 app/build.gradle
+          # 更新 build.gradle 添加 namespace
           cat > android/app/build.gradle << 'EOF'
           def localProperties = new Properties()
           def localPropertiesFile = rootProject.file('local.properties')
@@ -115,6 +82,7 @@ jobs:
           apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
           
           android {
+              namespace 'com.example.ai_bedtime_story_app'
               compileSdkVersion 34
               ndkVersion flutter.ndkVersion
           
@@ -152,6 +120,41 @@ jobs:
           
           dependencies {
               implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+          }
+          EOF
+          
+          # 更新项目级 build.gradle
+          cat > android/build.gradle << 'EOF'
+          buildscript {
+              ext.kotlin_version = '1.9.22'
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.3.0'
+                  classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+              }
+          }
+          
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          
+          rootProject.buildDir = '../build'
+          subprojects {
+              project.buildDir = "${rootProject.buildDir}/${project.name}"
+          }
+          subprojects {
+              project.evaluationDependsOn(':app')
+          }
+          
+          tasks.register("clean", Delete) {
+              delete rootProject.buildDir
           }
           EOF
           
