@@ -1,7 +1,7 @@
-// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const BedtimeStoryApp());
@@ -15,64 +15,109 @@ class BedtimeStoryApp extends StatelessWidget {
     return MaterialApp(
       title: 'AI睡前故事',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        textTheme: GoogleFonts.latoTextTheme(),
+        primarySwatch: Colors.deepPurple,
+        scaffoldBackgroundColor: Colors.grey.shade50,
+        textTheme: GoogleFonts.poppinsTextTheme(),
         useMaterial3: true,
       ),
-      home: const StoryPage(),
+      home: const HomePage(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class StoryPage extends StatefulWidget {
-  const StoryPage({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
   @override
-  State<StoryPage> createState() => _StoryPageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _StoryPageState extends State<StoryPage> {
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
   final FlutterTts _flutterTts = FlutterTts();
-  final TextEditingController _storyController = TextEditingController();
-  bool _isSpeaking = false;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _interestController = TextEditingController();
+  String _selectedStyle = '童话';
+  String _generatedStory = '';
+  bool _isLoading = false;
+  bool _isPlaying = false;
+
+  final List<String> _storyStyles = ['童话', '冒险', '温馨', '启蒙'];
 
   @override
   void initState() {
     super.initState();
-    _initTts();
+    _animationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+    _initTTS();
+    _loadSavedData();
   }
 
-  Future<void> _initTts() async {
+  Future<void> _initTTS() async {
     await _flutterTts.setLanguage("zh-CN");
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setPitch(1.0);
-    
-    // 设置语音完成回调
     _flutterTts.setCompletionHandler(() {
-      setState(() {
-        _isSpeaking = false;
-      });
+      setState(() => _isPlaying = false);
+    });
+  }
+
+  Future<void> _loadSavedData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _nameController.text = prefs.getString('child_name') ?? '';
+      _interestController.text = prefs.getString('child_interest') ?? '';
+    });
+  }
+
+  Future<void> _saveChildInfo() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('child_name', _nameController.text);
+    await prefs.setString('child_interest', _interestController.text);
+  }
+
+  Future<void> _generateStory() async {
+    if (_nameController.text.isEmpty) {
+      _showSnackBar('请输入宝宝的名字');
+      return;
+    }
+
+    await _saveChildInfo();
+
+    setState(() {
+      _isLoading = true;
+      _generatedStory = '';
+    });
+
+    await Future.delayed(const Duration(seconds: 2));
+    
+    final stories = {
+      '童话': '从前有一个美丽的花园，住着一位小公主${_nameController.text}。她善良勇敢，每天都和小动物们一起玩耍。',
+      '冒险': '勇敢的${_nameController.text}踏上了寻找魔法宝石的冒险之旅，途中遇到了许多挑战。',
+      '温馨': '在一个温暖的夜晚，${_nameController.text}和家人们围坐在火炉旁，分享着快乐的故事。',
+      '启蒙': '${_nameController.text}今天学会了分享，他/她发现分享能让快乐加倍。',
+    };
+    
+    setState(() {
+      _generatedStory = stories[_selectedStyle]! + 
+        ' ${_interestController.text.isNotEmpty ? '他/她特别喜欢$_interestController.text，这让他/她的冒险更加精彩。' : ''}';
+      _isLoading = false;
     });
   }
 
   Future<void> _speakStory() async {
-    if (_storyController.text.isEmpty) {
-      _showSnackBar('请先输入或选择故事内容');
-      return;
+    if (_generatedStory.isNotEmpty) {
+      setState(() => _isPlaying = true);
+      await _flutterTts.speak(_generatedStory);
     }
-    
-    setState(() {
-      _isSpeaking = true;
-    });
-    await _flutterTts.speak(_storyController.text);
   }
 
-  Future<void> _stopSpeaking() async {
+  Future<void> _stopStory() async {
     await _flutterTts.stop();
-    setState(() {
-      _isSpeaking = false;
-    });
+    setState(() => _isPlaying = false);
   }
 
   void _showSnackBar(String message) {
@@ -84,157 +129,194 @@ class _StoryPageState extends State<StoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'AI睡前故事',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // 故事输入区域
-            Expanded(
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 200,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              title: const Text('AI睡前故事'),
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.deepPurple.shade400, Colors.purple.shade200],
+                  ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '故事内容',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _storyController,
-                          maxLines: null,
-                          expands: true,
-                          decoration: InputDecoration(
-                            hintText: '输入你想要听的故事...\n\n例如：从前有一座美丽的城堡...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
+                child: Stack(
+                  children: [
+                    ...List.generate(20, (index) {
+                      return Positioned(
+                        left: (index * 50) % MediaQuery.of(context).size.width,
+                        top: (index * 30) % 200,
+                        child: AnimatedBuilder(
+                          animation: _animationController,
+                          builder: (context, child) {
+                            return Transform.translate(
+                              offset: Offset(0, 5 * _animationController.value),
+                              child: child,
+                            );
+                          },
+                          child: Icon(
+                            Icons.star,
+                            color: Colors.white.withOpacity(0.3),
+                            size: 20,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // 示例故事按钮
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildStoryButton('🐻 小熊的冒险', '小熊在森林里迷路了，它遇到了许多动物朋友，最后在小兔子的帮助下找到了回家的路。'),
-                _buildStoryButton('🌟 星星公主', '在遥远的星空王国，有一位善良的星星公主，她用魔法帮助了所有需要帮助的人。'),
-                _buildStoryButton('🦁 勇敢的小狮子', '小狮子虽然年纪小，但非常勇敢，它保护了森林里的小动物们。'),
-                _buildStoryButton('🌈 彩虹桥', '彩虹桥连接着两个世界，只有心存善良的人才能走过这座桥。'),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            // 控制按钮
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isSpeaking ? null : _speakStory,
-                    icon: const Icon(Icons.play_arrow, size: 28),
-                    label: const Text(
-                      '播放故事',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _stopSpeaking,
-                    icon: const Icon(Icons.stop, size: 28),
-                    label: const Text(
-                      '停止',
-                      style: TextStyle(fontSize: 18),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            
-            // 状态指示
-            if (_isSpeaking)
-              Container(
-                padding: const EdgeInsets.all(8),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 8),
-                    Text('正在播放故事...'),
+                      );
+                    }),
                   ],
                 ),
               ),
-          ],
-        ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _nameController,
+                            decoration: const InputDecoration(
+                              labelText: '宝宝的名字',
+                              prefixIcon: Icon(Icons.child_care),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _interestController,
+                            decoration: const InputDecoration(
+                              labelText: '兴趣爱好（可选）',
+                              prefixIcon: Icon(Icons.favorite),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _selectedStyle,
+                            decoration: const InputDecoration(
+                              labelText: '故事风格',
+                              prefixIcon: Icon(Icons.auto_stories),
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _storyStyles.map((style) {
+                              return DropdownMenuItem(
+                                value: style,
+                                child: Text(style),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() => _selectedStyle = value!);
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _generateStory,
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const CircularProgressIndicator()
+                                  : const Text('生成故事', style: TextStyle(fontSize: 16)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_generatedStory.isNotEmpty)
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.auto_stories, color: Colors.deepPurple),
+                                SizedBox(width: 8),
+                                Text(
+                                  '生成的故事',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _generatedStory,
+                              style: const TextStyle(height: 1.5),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: _isPlaying ? null : _speakStory,
+                                    icon: const Icon(Icons.play_arrow),
+                                    label: const Text('播放'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: _stopStory,
+                                    icon: const Icon(Icons.stop),
+                                    label: const Text('停止'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildStoryButton(String title, String content) {
-    return ActionChip(
-      label: Text(title),
-      onPressed: () {
-        _storyController.text = content;
-        _showSnackBar('已加载示例故事');
-      },
-      backgroundColor: Colors.deepPurple.shade100,
-      elevation: 2,
     );
   }
 
   @override
   void dispose() {
-    _storyController.dispose();
+    _animationController.dispose();
+    _nameController.dispose();
+    _interestController.dispose();
     _flutterTts.stop();
     super.dispose();
   }
